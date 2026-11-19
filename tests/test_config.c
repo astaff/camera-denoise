@@ -145,6 +145,27 @@ int main(int argc, char **argv)
 		CHECK(!strcmp(c.board, "sensor:imx958-uw"));
 		CHECK(c.mode == CDN_MODE_ON && c.trig.enter_gain == 3584 && c.trig.exit_gain == 2400);
 
+		/*
+		 * A kernel without the sensor attribute (before linux#2216), or one
+		 * that has not detected the camera yet, gives no sensor: the J616s
+		 * keeps the [apple,j616s] profile it had before sensor keys.
+		 */
+		{
+			char compat_j616s[512];
+
+			snprintf(compat_j616s, sizeof(compat_j616s), "%s/compat-j616s", dir);
+			f = fopen(compat_j616s, "wb");
+			fwrite("apple,j616s\0apple,t6040\0apple,arm-platform\0", 1, 43, f);
+			fclose(f);
+			CHECK(cdn_config_load_sensor(&c, NULL, compat_j616s, shipped, NULL, 0) == 0);
+			CHECK(!strcmp(c.board, "apple,j616s"));
+			CHECK(c.trig.enter_gain == 3584 && c.trig.exit_gain == 2816);
+			CHECK(c.framing.supported && c.framing.maximum == 6.0f &&
+			      c.framing.default_zoom == 1.5f);
+			CHECK(cdn_config_load_sensor(&c, "", compat_j616s, shipped, NULL, 0) == 0);
+			CHECK(!strcmp(c.board, "apple,j616s"));
+		}
+
 		/* Sensor section wins over [<compatible>] fallback; unknown sensor falls back. */
 		CHECK(cdn_config_load_sensor(&c, "imx958-uw", compat, shipped, NULL, 0) == 0);
 		CHECK(!strcmp(c.board, "sensor:imx958-uw") && c.trig.enter_gain == 3584);
